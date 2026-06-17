@@ -24,9 +24,13 @@ class Settings:
     weblink_repo_name: str
     weblink_folder_id: int
     scrape_interval_hours: int
+    bot_command: str
+    process_limit: int | None
 
     @classmethod
     def from_env(cls) -> Settings:
+        limit_raw = os.getenv("PROCESS_LIMIT", "").strip()
+        process_limit = int(limit_raw) if limit_raw else None
         return cls(
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -38,6 +42,8 @@ class Settings:
             weblink_repo_name=os.getenv("WEBLINK_REPO_NAME", "KGBPUBLIC"),
             weblink_folder_id=int(os.getenv("WEBLINK_FOLDER_ID", "37030")),
             scrape_interval_hours=int(os.getenv("SCRAPE_INTERVAL_HOURS", "24")),
+            bot_command=os.getenv("BOT_COMMAND", "run"),
+            process_limit=process_limit,
         )
 
 

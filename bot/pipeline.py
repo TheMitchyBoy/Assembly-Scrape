@@ -59,6 +59,12 @@ class MeetingMinutesBot:
                         stats["processed"] += 1
                         if created:
                             stats["blog_posts_created"] += 1
+                        session.commit()
+                        logger.info(
+                            "Saved to database: %s (entry %s)",
+                            document.name,
+                            document.entry_id,
+                        )
                 except Exception as exc:
                     stats["failed"] += 1
                     logger.exception("Failed to process %s (%s): %s", document.name, document.entry_id, exc)

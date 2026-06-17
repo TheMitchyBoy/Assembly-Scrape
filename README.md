@@ -72,6 +72,37 @@ python -m bot.main schedule [--hours N] [--limit N]
 
 Use `--force` to regenerate blog posts for meetings that were already processed.
 
+## Deployment (Railway / containers)
+
+Set these environment variables on your host:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `OPENAI_API_KEY` | Yes | Without this the bot exits immediately |
+| `DATABASE_URL` | Yes (production) | Railway/Postgres URL, e.g. `postgresql://...` |
+| `BOT_COMMAND` | No | Defaults to `run` on startup |
+| `PROCESS_LIMIT` | No | Process only N meetings per run (testing) |
+
+The container start command should be:
+
+```bash
+python -m bot.main run
+```
+
+Or rely on the default (`BOT_COMMAND=run`) with:
+
+```bash
+python -m bot.main
+```
+
+For recurring scrapes, use `BOT_COMMAND=schedule` or:
+
+```bash
+python -m bot.main schedule --hours 24
+```
+
+After deploy, check logs for `Saved to database` and run `python -m bot.main status`.
+
 ## How It Works
 
 1. **Scrape** — Authenticates with the WebLink portal (session cookies) and lists documents under the configured folder.
