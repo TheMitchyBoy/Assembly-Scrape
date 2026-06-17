@@ -26,6 +26,13 @@ class Settings:
     scrape_interval_hours: int
     bot_command: str
     process_limit: int | None
+    enable_kgb_assembly: bool
+    enable_city_council: bool
+    city_primegov_url: str
+    city_current_url: str
+    city_archive_url: str
+    city_min_year: int
+    city_scrape_archive: bool
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -44,6 +51,22 @@ class Settings:
             scrape_interval_hours=int(os.getenv("SCRAPE_INTERVAL_HOURS", "24")),
             bot_command=os.getenv("BOT_COMMAND", "run"),
             process_limit=process_limit,
+            enable_kgb_assembly=os.getenv("ENABLE_KGB_ASSEMBLY", "true").lower() == "true",
+            enable_city_council=os.getenv("ENABLE_CITY_COUNCIL", "true").lower() == "true",
+            city_primegov_url=os.getenv(
+                "CITY_PRIMEGOV_URL",
+                "https://ketchikan.primegov.com",
+            ).rstrip("/"),
+            city_current_url=os.getenv(
+                "CITY_CURRENT_URL",
+                "https://www.ketchikan.gov/current-agendas-and-minutes",
+            ),
+            city_archive_url=os.getenv(
+                "CITY_ARCHIVE_URL",
+                "https://www.ketchikan.gov/council-agendas-and-meetings",
+            ),
+            city_min_year=int(os.getenv("CITY_MIN_YEAR", "2020")),
+            city_scrape_archive=os.getenv("CITY_SCRAPE_ARCHIVE", "false").lower() == "true",
         )
 
 

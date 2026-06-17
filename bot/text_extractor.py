@@ -1,4 +1,4 @@
-"""Extract text from Laserfiche documents and optional PDF bytes."""
+"""Extract text from borough OCR pages and city council PDF minutes."""
 
 from __future__ import annotations
 
@@ -9,20 +9,34 @@ import fitz
 import requests
 from bs4 import BeautifulSoup
 
-from bot.config import settings
+from bot.city_council_scraper import CityCouncilScraper
+from bot.models import SOURCE_CITY_COUNCIL, MeetingDocument
 from bot.scraper import WebLinkScraper
 
 logger = logging.getLogger(__name__)
 
 
 class TextExtractor:
-    """Pull OCR text from Laserfiche pages and optionally parse PDF exports."""
+    """Pull text from Laserfiche OCR pages or downloaded PDF minutes."""
 
-    def __init__(self, scraper: WebLinkScraper | None = None) -> None:
-        self.scraper = scraper or WebLinkScraper()
+    def __init__(
+        self,
+        weblink_scraper: WebLinkScraper | None = None,
+        city_scraper: CityCouncilScraper | None = None,
+    ) -> None:
+        self.weblink_scraper = weblink_scraper or WebLinkScraper()
+        self.city_scraper = city_scraper or CityCouncilScraper()
 
-    def extract_document_text(self, entry_id: int, page_count: int) -> str:
-        """Extract full text for a document using Laserfiche OCR page text."""
+    def extract_document_text(self, document: MeetingDocument) -> tuple[str, str]:
+        if document.source == SOURCE_CITY_COUNCIL:
+            pdf_bytes = self.city_scraper.download_minutes_pdf(document)
+            text = self.extract_from_pdf_bytes(pdf_bytes)
+            return text, "city_council_pdf"
+
+        text, method = self.extract_with_pdf_fallback(document.entry_id, document.page_count)
+        return text, method
+
+    def extract_weblink_text(self, entry_id: int, page_count: int) -> str:
         pages: list[str] = []
         for page_num in range(1, page_count + 1):
             page_text = self._get_page_text(entry_id, page_num)
@@ -32,14 +46,14 @@ class TextExtractor:
 
     def _get_page_text(self, document_id: int, page_num: int) -> str:
         payload = {
-            "repoName": self.scraper.repo_name,
+            "repoName": self.weblink_scraper.repo_name,
             "documentId": document_id,
             "pageNum": page_num,
             "showAnn": False,
             "searchUuid": None,
         }
-        response = self.scraper.session.post(
-            self.scraper._service_url("DocumentService.aspx/GetTextHtmlForPage"),
+        response = self.weblink_scraper.session.post(
+            self.weblink_scraper._service_url("DocumentService.aspx/GetTextHtmlForPage"),
             json=payload,
             timeout=60,
         )
@@ -63,26 +77,21 @@ class TextExtractor:
         return text.strip()
 
     def extract_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
-        """Fallback extractor when a PDF file is available."""
         document = fitz.open(stream=pdf_bytes, filetype="pdf")
         pages = [page.get_text("text").strip() for page in document]
         document.close()
         return "\n\n".join(page for page in pages if page).strip()
 
     def try_download_pdf(self, entry_id: int) -> bytes | None:
-        """
-        Attempt to download a PDF rendition of the document.
-        Laserfiche public export is not always available; returns None on failure.
-        """
-        export_url = f"{self.scraper.base_url}/Export.aspx"
+        export_url = f"{self.weblink_scraper.base_url}/Export.aspx"
         params = {
             "id": entry_id,
             "dbid": 0,
-            "repo": self.scraper.repo_name,
+            "repo": self.weblink_scraper.repo_name,
             "format": "pdf",
         }
         try:
-            response = self.scraper.session.get(export_url, params=params, timeout=120)
+            response = self.weblink_scraper.session.get(export_url, params=params, timeout=120)
             content_type = response.headers.get("Content-Type", "")
             if response.ok and "pdf" in content_type.lower():
                 return response.content
@@ -91,11 +100,7 @@ class TextExtractor:
         return None
 
     def extract_with_pdf_fallback(self, entry_id: int, page_count: int) -> tuple[str, str]:
-        """
-        Extract text, preferring OCR API and falling back to PDF parsing.
-        Returns (text, extraction_method).
-        """
-        ocr_text = self.extract_document_text(entry_id, page_count)
+        ocr_text = self.extract_weblink_text(entry_id, page_count)
         if len(ocr_text) >= 200:
             return ocr_text, "laserfiche_ocr"
 

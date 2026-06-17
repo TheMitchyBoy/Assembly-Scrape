@@ -13,7 +13,6 @@ from apscheduler.triggers.interval import IntervalTrigger
 from bot.config import settings
 from bot.database import BlogPost, ProcessedDocument, get_session, init_db
 from bot.pipeline import MeetingMinutesBot
-from bot.scraper import WebLinkScraper
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +26,9 @@ def validate_config() -> None:
     init_db()
     logger.info("Database initialized")
     logger.info("Database URL: %s", _mask_database_url(settings.database_url))
-    logger.info("WebLink folder ID: %s", settings.weblink_folder_id)
+    logger.info("KGB assembly scraping: %s", settings.enable_kgb_assembly)
+    logger.info("City council scraping: %s", settings.enable_city_council)
+    logger.info("City council min year: %s", settings.city_min_year)
     logger.info("OpenAI model: %s", settings.openai_model)
 
     if not settings.openai_api_key:
@@ -62,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Process only the first N documents",
     )
 
-    subparsers.add_parser("list", help="List discovered meeting documents from WebLink")
+    subparsers.add_parser("list", help="List discovered meeting documents from all enabled sources")
 
     subparsers.add_parser("status", help="Show database processing status")
 
@@ -99,12 +100,13 @@ def cmd_run(force: bool, limit: int | None) -> int:
 
 
 def cmd_list() -> int:
-    scraper = WebLinkScraper()
-    documents = scraper.discover_meeting_documents()
-    print(f"Found {len(documents)} meeting documents under folder {settings.weblink_folder_id}:")
+    bot = MeetingMinutesBot()
+    documents = bot.discover_all_documents()
+    print(f"Found {len(documents)} meeting documents:")
     for doc in documents:
         print(
-            f"  - {doc.name} (id={doc.entry_id}, pages={doc.page_count}, date={doc.meeting_date or 'n/a'})"
+            f"  - [{doc.source}] {doc.name} (id={doc.entry_id}, "
+            f"pages={doc.page_count or 'pdf'}, date={doc.meeting_date or 'n/a'})"
         )
     return 0
 
@@ -124,7 +126,7 @@ def cmd_status() -> int:
         if recent:
             print("\nRecent posts:")
             for post in recent:
-                print(f"  - {post.title} ({post.slug})")
+                print(f"  - [{post.source}] {post.title} ({post.slug})")
     finally:
         session.close()
     return 0

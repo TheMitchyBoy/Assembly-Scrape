@@ -27,6 +27,7 @@ class Summarizer:
     def summarize_meeting(
         self,
         *,
+        governing_body: str,
         title: str,
         meeting_date: str | None,
         raw_text: str,
@@ -34,6 +35,7 @@ class Summarizer:
         """Return editorial analysis separating newsworthy content from routine procedure."""
         clipped_text = raw_text[:120_000]
         user_prompt = SUMMARY_USER_PROMPT_TEMPLATE.format(
+            governing_body=governing_body,
             title=title,
             meeting_date=meeting_date or "Unknown",
             raw_text=clipped_text,

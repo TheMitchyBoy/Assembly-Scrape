@@ -1,14 +1,14 @@
 # Meeting Minutes Bot
 
-Automatically scrapes Ketchikan Gateway Borough Assembly meeting minutes from the [Laserfiche WebLink public portal](https://kgb-lf-weblink.kgbak.us/WebLink/Browse.aspx?id=37030&dbid=0&repo=KGBPUBLIC), extracts text from scanned minute documents, summarizes them with AI, and saves blog posts to a database.
+Automatically scrapes **Ketchikan Gateway Borough Assembly** and **Ketchikan City Council** meeting minutes, extracts text, summarizes them with AI in a journalistic tone, and saves blog posts to a database.
 
 ## Features
 
-- Discovers meeting minute documents via the Laserfiche WebLink API
-- Extracts OCR text from each scanned page (with optional PDF parsing fallback)
-- Uses OpenAI to triage newsworthy content vs. routine procedure, then writes journalistic blog posts
-- Stores raw text, processing status, and published posts in SQLite (or any SQLAlchemy-supported database)
-- Supports one-off runs or scheduled automatic scraping
+- **Borough Assembly** — Laserfiche WebLink API + OCR page text
+- **City Council** — PrimeGov portal API + PDF minutes (from [current agendas](https://www.ketchikan.gov/current-agendas-and-meetings))
+- Editorial AI triage that separates newsworthy decisions from routine procedure
+- Journalistic markdown blog posts stored in SQLite or PostgreSQL
+- One-off or scheduled automatic runs
 
 ## Quick Start
 
@@ -53,13 +53,18 @@ python -m bot.main status
 | `DATABASE_URL` | `sqlite:///./data/meeting_minutes.db` | SQLAlchemy database URL |
 | `WEBLINK_BASE_URL` | KGB public WebLink URL | Laserfiche portal base URL |
 | `WEBLINK_REPO_NAME` | `KGBPUBLIC` | Repository name |
-| `WEBLINK_FOLDER_ID` | `37030` | Root folder ID (2026 minutes) |
+| `WEBLINK_FOLDER_ID` | `37030` | Borough root folder ID (2026 minutes) |
+| `ENABLE_KGB_ASSEMBLY` | `true` | Scrape borough assembly minutes |
+| `ENABLE_CITY_COUNCIL` | `true` | Scrape city council minutes |
+| `CITY_PRIMEGOV_URL` | `https://ketchikan.primegov.com` | PrimeGov API for current council minutes |
+| `CITY_MIN_YEAR` | `2020` | Oldest council meeting year to process |
+| `CITY_SCRAPE_ARCHIVE` | `false` | Also scrape archived HTML PDF tables |
 | `SCRAPE_INTERVAL_HOURS` | `24` | Default schedule interval |
 
 ## Database Schema
 
-- **processed_documents** — scraped entry metadata and raw extracted text
-- **blog_posts** — AI-generated titles, slugs, summaries, and markdown content
+- **processed_documents** — scraped entry metadata and raw extracted text (`source` + `entry_id`)
+- **blog_posts** — AI-generated titles, slugs, summaries, and markdown content (`source` + `source_entry_id`)
 
 ## Commands
 

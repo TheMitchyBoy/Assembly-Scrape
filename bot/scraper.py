@@ -3,30 +3,19 @@
 from __future__ import annotations
 
 import logging
-import re
-from dataclasses import dataclass
 from typing import Any
 
 import requests
 
 from bot.config import settings
+from bot.models import SOURCE_KGB_ASSEMBLY, MeetingDocument, parse_meeting_date
 
 logger = logging.getLogger(__name__)
 
 ENTRY_TYPE_FOLDER = 0
 ENTRY_TYPE_DOCUMENT = -2
 
-
-@dataclass
-class MeetingDocument:
-    entry_id: int
-    name: str
-    page_count: int
-    meeting_date: str | None = None
-    meeting_type: str | None = None
-    body: str | None = None
-    source_path: str | None = None
-    parent_folder_id: int | None = None
+__all__ = ["MeetingDocument", "WebLinkScraper", "parse_meeting_date"]
 
 
 class WebLinkScraper:
@@ -123,6 +112,7 @@ class WebLinkScraper:
                 metadata = self._extract_metadata(entry_id)
                 documents.append(
                     MeetingDocument(
+                        source=SOURCE_KGB_ASSEMBLY,
                         entry_id=entry_id,
                         name=name,
                         page_count=page_count,
@@ -156,8 +146,4 @@ class WebLinkScraper:
         return f"{self.base_url}/Browse.aspx?id={folder}&dbid=0&repo={self.repo_name}"
 
 
-def parse_meeting_date(name: str, metadata_date: str | None = None) -> str | None:
-    if metadata_date:
-        return metadata_date
-    match = re.search(r"(\d{4}-\d{2}-\d{2})", name)
-    return match.group(1) if match else None
+# parse_meeting_date re-exported from bot.models via __all__
