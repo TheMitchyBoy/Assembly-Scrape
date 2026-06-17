@@ -5,7 +5,7 @@ Automatically scrapes **Ketchikan Gateway Borough Assembly** and **Ketchikan Cit
 ## Features
 
 - **Borough Assembly** — Laserfiche WebLink API + OCR page text
-- **City Council** — PrimeGov portal API + PDF minutes (from [current agendas](https://www.ketchikan.gov/current-agendas-and-meetings))
+- **City Council** — PDF minutes/agendas from [council agendas page](https://www.ketchikan.gov/council-agendas-and-meetings) plus recent PrimeGov minutes
 - Editorial AI triage that separates newsworthy decisions from routine procedure
 - Journalistic markdown blog posts stored in SQLite or PostgreSQL
 - One-off or scheduled automatic runs
@@ -56,9 +56,10 @@ python -m bot.main status
 | `WEBLINK_FOLDER_ID` | `37030` | Borough root folder ID (2026 minutes) |
 | `ENABLE_KGB_ASSEMBLY` | `true` | Scrape borough assembly minutes |
 | `ENABLE_CITY_COUNCIL` | `true` | Scrape city council minutes |
-| `CITY_PRIMEGOV_URL` | `https://ketchikan.primegov.com` | PrimeGov API for current council minutes |
-| `CITY_MIN_YEAR` | `2020` | Oldest council meeting year to process |
-| `CITY_SCRAPE_ARCHIVE` | `false` | Also scrape archived HTML PDF tables |
+| `CITY_AGENDA_URL` | `https://www.ketchikan.gov/council-agendas-and-meetings` | Primary city council agendas page |
+| `CITY_SCRAPE_AGENDA_PAGE` | `true` | Scrape PDF links from the agendas HTML page |
+| `CITY_USE_PRIMEGOV` | `true` | Also fetch 2016+ minutes PDFs from PrimeGov |
+| `CITY_MIN_YEAR` | `2012` | Oldest council meeting year to process |
 | `SCRAPE_INTERVAL_HOURS` | `24` | Default schedule interval |
 
 ## Database Schema
@@ -110,14 +111,16 @@ After deploy, check logs for `Saved to database` and run `python -m bot.main sta
 
 ## How It Works
 
-1. **Scrape** — Authenticates with the WebLink portal (session cookies) and lists documents under the configured folder.
-2. **Extract** — Pulls OCR text from each page via `DocumentService.aspx/GetTextHtmlForPage`.
-3. **Summarize** — Sends the full scanned text to OpenAI for editorial triage (votes, budget, community impact vs. routine procedure).
-4. **Publish** — Generates a journalistic markdown article and upserts it into the database.
+1. **Scrape** — Borough minutes from Laserfiche WebLink; city council PDFs from the [agendas page](https://www.ketchikan.gov/council-agendas-and-meetings) and PrimeGov.
+2. **Extract** — OCR text for borough pages; PDF text for city council documents.
+3. **Summarize** — OpenAI editorial triage (votes, budget, community impact vs. routine procedure).
+4. **Publish** — Journalistic markdown articles saved to the database with `source` tags (`kgb_assembly`, `city_council`).
 
 ## Notes
 
-- Meeting documents on this portal are scanned images stored in Laserfiche; text is extracted from the portal's OCR layer rather than native PDF files.
+- Borough documents are scanned images in Laserfiche; text comes from the portal OCR layer.
+- City council PDFs are scraped from the public [council agendas and meetings](https://www.ketchikan.gov/council-agendas-and-meetings) page (Minutes PDFs preferred; Agenda PDFs used when minutes are unavailable).
+- Meetings after 2015 are supplemented from PrimeGov, which hosts current city council minutes PDFs.
 - Respect the borough's terms of use and rate limits when running scheduled jobs.
 - Set `DATABASE_URL` to PostgreSQL for production deployments, e.g. `postgresql://user:pass@localhost/meeting_minutes`.
 

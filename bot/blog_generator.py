@@ -40,6 +40,11 @@ class BlogGenerator:
             meeting_name=document.name,
             meeting_date=meeting_date or "Unknown",
             meeting_type=document.meeting_type or "Regular",
+            document_kind=(
+                "approved meeting minutes"
+                if document.pdf_kind == "minutes"
+                else "meeting agenda packet"
+            ),
             source_url=source_url,
             summary_json=json.dumps(summary, indent=2),
             raw_text=raw_text[:80_000],

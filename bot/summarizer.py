@@ -31,13 +31,20 @@ class Summarizer:
         title: str,
         meeting_date: str | None,
         raw_text: str,
+        document_kind: str = "minutes",
     ) -> dict[str, str | list[str]]:
         """Return editorial analysis separating newsworthy content from routine procedure."""
         clipped_text = raw_text[:120_000]
+        source_note = (
+            "approved meeting minutes"
+            if document_kind == "minutes"
+            else "meeting agenda packet (meeting may not have occurred yet or minutes are unavailable)"
+        )
         user_prompt = SUMMARY_USER_PROMPT_TEMPLATE.format(
             governing_body=governing_body,
             title=title,
             meeting_date=meeting_date or "Unknown",
+            source_note=source_note,
             raw_text=clipped_text,
         )
 

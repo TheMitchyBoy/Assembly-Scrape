@@ -22,6 +22,7 @@ class MeetingDocument:
     parent_folder_id: int | None = None
     minutes_url: str | None = None
     compiled_file_id: int | None = None
+    pdf_kind: str = "minutes"
 
     @property
     def governing_body(self) -> str:

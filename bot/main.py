@@ -27,8 +27,10 @@ def validate_config() -> None:
     logger.info("Database initialized")
     logger.info("Database URL: %s", _mask_database_url(settings.database_url))
     logger.info("KGB assembly scraping: %s", settings.enable_kgb_assembly)
+    logger.info("City agenda page: %s", settings.city_agenda_url)
     logger.info("City council scraping: %s", settings.enable_city_council)
-    logger.info("City council min year: %s", settings.city_min_year)
+    logger.info("Scrape agenda page PDFs: %s", settings.city_scrape_agenda_page)
+    logger.info("Include PrimeGov PDFs: %s", settings.city_use_primegov)
     logger.info("OpenAI model: %s", settings.openai_model)
 
     if not settings.openai_api_key:

@@ -141,6 +141,7 @@ class MeetingMinutesBot:
             title=document.name,
             meeting_date=parse_meeting_date(document.name, document.meeting_date),
             raw_text=text,
+            document_kind=document.pdf_kind,
         )
         source_url = self._document_view_url(document)
         post_payload = self.blog_generator.generate_post(document, summary, text, source_url)

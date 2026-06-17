@@ -1,4 +1,4 @@
-"""Scraper for Ketchikan City Council minutes via PrimeGov and archived PDFs."""
+"""Scrape Ketchikan City Council PDFs from the public agenda page and PrimeGov."""
 
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ COUNCIL_COMMITTEE_KEYWORDS = (
 
 
 class CityCouncilScraper:
-    """Discover and download City Council minutes from PrimeGov and archive pages."""
+    """Discover City Council PDFs from the agenda page and recent PrimeGov minutes."""
 
     def __init__(self, session: requests.Session | None = None) -> None:
+        self.agenda_url = settings.city_agenda_url
         self.base_url = settings.city_primegov_url.rstrip("/")
-        self.archive_url = settings.city_archive_url
         self.session = session or requests.Session()
         self.session.headers.update(
             {
@@ -42,11 +42,82 @@ class CityCouncilScraper:
 
     def discover_meeting_documents(self) -> list[MeetingDocument]:
         documents: list[MeetingDocument] = []
-        documents.extend(self._discover_primegov_minutes())
-        if settings.city_scrape_archive:
-            documents.extend(self._discover_archive_minutes())
+        if settings.city_scrape_agenda_page:
+            agenda_docs = self._discover_agenda_page_pdfs()
+            logger.info("Found %s PDFs on city agenda page", len(agenda_docs))
+            documents.extend(agenda_docs)
+        if settings.city_use_primegov:
+            primegov_docs = self._discover_primegov_minutes()
+            logger.info("Found %s PrimeGov city council minute PDFs", len(primegov_docs))
+            documents.extend(primegov_docs)
         documents.sort(key=lambda doc: (doc.meeting_date or "", doc.name))
         return self._dedupe_documents(documents)
+
+    def _discover_agenda_page_pdfs(self) -> list[MeetingDocument]:
+        """Scrape Minutes and Agenda PDF links from the council agendas HTML page."""
+        response = self.session.get(self.agenda_url, timeout=60)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        documents: list[MeetingDocument] = []
+
+        for table in soup.find_all("table"):
+            current_year: int | None = None
+            for row in table.find_all("tr"):
+                cells = row.find_all(["td", "th"])
+                if not cells:
+                    continue
+
+                row_text = cells[0].get_text(" ", strip=True)
+                year_match = re.fullmatch(r"(20\d{2}|19\d{2})", row_text)
+                if year_match:
+                    current_year = int(year_match.group(1))
+                    continue
+                if current_year is None or current_year < settings.city_min_year:
+                    continue
+
+                links = self._extract_row_pdf_links(row)
+                pdf_url = links.get("minutes") or links.get("agenda")
+                if not pdf_url:
+                    continue
+
+                pdf_kind = "minutes" if links.get("minutes") else "agenda"
+                meeting_label = row_text
+                meeting_date = self._parse_archive_date(meeting_label, current_year)
+                entry_id = self._archive_entry_id(meeting_date, pdf_url)
+                name = meeting_label
+                if pdf_kind == "agenda" and "agenda" not in name.lower():
+                    name = f"{meeting_label} (Agenda)"
+
+                documents.append(
+                    MeetingDocument(
+                        source=SOURCE_CITY_COUNCIL,
+                        entry_id=entry_id,
+                        name=name,
+                        page_count=0,
+                        meeting_date=meeting_date,
+                        meeting_type=self._infer_meeting_type(meeting_label),
+                        body="City Council",
+                        source_path=self.agenda_url,
+                        minutes_url=pdf_url,
+                        pdf_kind=pdf_kind,
+                    )
+                )
+        return documents
+
+    @staticmethod
+    def _extract_row_pdf_links(row) -> dict[str, str]:
+        links: dict[str, str] = {}
+        for link in row.find_all("a", href=True):
+            label = link.get_text(" ", strip=True).lower()
+            href = link["href"]
+            if label not in {"minutes", "agenda"}:
+                continue
+            if ".pdf" not in href.lower() and "evogov" not in href.lower():
+                continue
+            if label == "n/a":
+                continue
+            links[label] = href
+        return links
 
     def _discover_primegov_minutes(self) -> list[MeetingDocument]:
         documents: list[MeetingDocument] = []
@@ -62,54 +133,6 @@ class CityCouncilScraper:
         upcoming = self._get_json("/api/v2/PublicPortal/ListUpcomingMeetings")
         if isinstance(upcoming, list):
             documents.extend(self._meetings_to_documents(upcoming, committee_ids))
-        return documents
-
-    def _discover_archive_minutes(self) -> list[MeetingDocument]:
-        response = self.session.get(self.archive_url, timeout=60)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        documents: list[MeetingDocument] = []
-
-        for table in soup.find_all("table"):
-            current_year: int | None = None
-            for row in table.find_all("tr"):
-                cells = row.find_all(["td", "th"])
-                if not cells:
-                    continue
-                row_text = cells[0].get_text(" ", strip=True)
-                year_match = re.fullmatch(r"(20\d{2}|19\d{2})", row_text)
-                if year_match:
-                    current_year = int(year_match.group(1))
-                    continue
-                if current_year is None or current_year < settings.city_min_year:
-                    continue
-
-                meeting_label = row_text
-                minutes_link = None
-                for link in row.find_all("a", href=True):
-                    label = link.get_text(" ", strip=True).lower()
-                    href = link["href"]
-                    if label == "minutes" and (".pdf" in href.lower() or "evogov" in href.lower()):
-                        minutes_link = href
-                        break
-                if not minutes_link:
-                    continue
-
-                meeting_date = self._parse_archive_date(meeting_label, current_year)
-                entry_id = self._archive_entry_id(meeting_date, minutes_link)
-                documents.append(
-                    MeetingDocument(
-                        source=SOURCE_CITY_COUNCIL,
-                        entry_id=entry_id,
-                        name=meeting_label,
-                        page_count=0,
-                        meeting_date=meeting_date,
-                        meeting_type=self._infer_meeting_type(meeting_label),
-                        body="City Council",
-                        source_path=self.archive_url,
-                        minutes_url=minutes_link,
-                    )
-                )
         return documents
 
     def _meetings_to_documents(
@@ -135,9 +158,10 @@ class CityCouncilScraper:
                     meeting_date=meeting.get("date"),
                     meeting_type=meeting.get("title"),
                     body="City Council",
-                    source_path=f"{self.base_url}/public/portal",
+                    source_path=self.agenda_url,
                     minutes_url=self.minutes_preview_url(compiled_id),
                     compiled_file_id=compiled_id,
+                    pdf_kind="minutes",
                 )
             )
         return documents
@@ -199,7 +223,7 @@ class CityCouncilScraper:
             return self._download_primegov_pdf(document.compiled_file_id)
         if document.minutes_url:
             return self._download_url(document.minutes_url)
-        raise RuntimeError(f"No minutes download path for {document.source_key}")
+        raise RuntimeError(f"No PDF download path for {document.source_key}")
 
     def _download_primegov_pdf(self, compiled_file_id: int) -> bytes:
         response = self.session.get(
@@ -220,10 +244,13 @@ class CityCouncilScraper:
         return content
 
     def _download_url(self, url: str) -> bytes:
-        full_url = urljoin(self.archive_url, url)
+        full_url = url if url.startswith("http") else urljoin(self.agenda_url, url)
         response = self.session.get(full_url, timeout=120)
         response.raise_for_status()
-        return response.content
+        content = response.content
+        if content[:4] != b"%PDF":
+            raise RuntimeError(f"Download did not return a PDF: {full_url}")
+        return content
 
     def minutes_preview_url(self, compiled_file_id: int) -> str:
         return (
@@ -232,11 +259,11 @@ class CityCouncilScraper:
         )
 
     def document_view_url(self, document: MeetingDocument) -> str:
-        if document.minutes_url:
+        if document.minutes_url and document.minutes_url.startswith("http"):
             return document.minutes_url
         if document.compiled_file_id is not None:
             return self.minutes_preview_url(document.compiled_file_id)
-        return settings.city_current_url
+        return self.agenda_url
 
     @staticmethod
     def _parse_archive_date(label: str, year: int) -> str:
@@ -266,11 +293,11 @@ class CityCouncilScraper:
         return "Regular"
 
     @staticmethod
-    def _archive_entry_id(meeting_date: str, minutes_url: str) -> int:
-        file_id = re.search(r"/media/(\d+)\.pdf", minutes_url, re.I)
+    def _archive_entry_id(meeting_date: str, pdf_url: str) -> int:
+        file_id = re.search(r"/media/(\d+)\.pdf", pdf_url, re.I)
         if file_id:
             return 2_000_000_000 + int(file_id.group(1))
-        digest = abs(hash(f"{meeting_date}|{minutes_url}")) % 1_000_000_000
+        digest = abs(hash(f"{meeting_date}|{pdf_url}")) % 1_000_000_000
         return 2_000_000_000 + digest
 
     @staticmethod
@@ -278,9 +305,7 @@ class CityCouncilScraper:
         seen: set[str] = set()
         unique: list[MeetingDocument] = []
         for document in documents:
-            key = document.source_key
-            if document.minutes_url:
-                key = f"{document.source}:{document.minutes_url}"
+            key = f"{document.source}:{document.minutes_url or document.source_key}"
             if key in seen:
                 continue
             seen.add(key)

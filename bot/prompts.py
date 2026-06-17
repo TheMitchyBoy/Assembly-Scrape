@@ -25,6 +25,7 @@ SUMMARY_USER_PROMPT_TEMPLATE = """Read the full meeting minutes below and perfor
 Governing body: {governing_body}
 Meeting title: {title}
 Meeting date: {meeting_date}
+Document type: {source_note}
 
 First, mentally separate NEWSWORTHY content from ROUTINE procedural filler.
 Then return JSON with these keys:
@@ -61,6 +62,7 @@ BLOG_USER_PROMPT_TEMPLATE = """Write a journalistic blog post in markdown from t
 Meeting name: {meeting_name}
 Meeting date: {meeting_date}
 Meeting type: {meeting_type}
+Document type: {document_kind}
 Source URL: {source_url}
 
 Editorial analysis (use this to decide what belongs in the story):

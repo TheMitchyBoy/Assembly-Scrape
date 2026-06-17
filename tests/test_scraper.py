@@ -42,18 +42,22 @@ class ScraperTests(unittest.TestCase):
         self.assertIn("KETCHIKAN", text.upper())
         self.assertIn(method, {"laserfiche_ocr", "pdf"})
 
-    def test_extract_city_council_pdf_text(self) -> None:
+    def test_discover_agenda_page_pdfs(self) -> None:
+        scraper = CityCouncilScraper()
+        documents = scraper._discover_agenda_page_pdfs()
+        self.assertGreaterEqual(len(documents), 50)
+        self.assertTrue(all(doc.minutes_url for doc in documents))
+        self.assertTrue(all(doc.pdf_kind in {"minutes", "agenda"} for doc in documents))
+
+    def test_extract_agenda_page_pdf_text(self) -> None:
         scraper = CityCouncilScraper()
         extractor = TextExtractor(city_scraper=scraper)
-        documents = scraper.discover_meeting_documents()
-        sample = next(
-            doc
-            for doc in reversed(documents)
-            if doc.compiled_file_id and doc.meeting_date and "2026" in doc.meeting_date
-        )
+        documents = scraper._discover_agenda_page_pdfs()
+        sample = documents[0]
         text, method = extractor.extract_document_text(sample)
         self.assertEqual(method, "city_council_pdf")
-        self.assertGreater(len(text), 100)
+        self.assertGreater(len(text), 500)
+        self.assertIn("COUNCIL", text.upper())
 
 
 if __name__ == "__main__":
