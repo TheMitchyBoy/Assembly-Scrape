@@ -1,4 +1,4 @@
-"""AI-powered summarization using OpenAI."""
+"""AI-powered editorial summarization using OpenAI."""
 
 from __future__ import annotations
 
@@ -9,13 +9,9 @@ import re
 from openai import OpenAI
 
 from bot.config import settings
+from bot.prompts import EDITORIAL_SYSTEM_PROMPT, SUMMARY_USER_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
-
-SUMMARY_SYSTEM_PROMPT = """You are an expert municipal government analyst covering the Ketchikan Gateway Borough, Alaska.
-Summarize assembly meeting minutes clearly and accurately for residents.
-Focus on decisions, votes, ordinances, resolutions, budget items, and notable public comments.
-Use neutral, factual language. Do not invent details that are not in the source text."""
 
 
 class Summarizer:
@@ -35,30 +31,20 @@ class Summarizer:
         meeting_date: str | None,
         raw_text: str,
     ) -> dict[str, str | list[str]]:
-        """Return structured summary fields for a meeting."""
+        """Return editorial analysis separating newsworthy content from routine procedure."""
         clipped_text = raw_text[:120_000]
-        user_prompt = f"""Analyze these Ketchikan Gateway Borough Assembly meeting minutes.
-
-Meeting title: {title}
-Meeting date: {meeting_date or "Unknown"}
-
-Return JSON with these keys:
-- "short_summary": 2-3 sentence overview for social previews
-- "key_decisions": array of bullet strings for major votes and actions
-- "budget_finance": array of bullet strings (empty array if none)
-- "public_comment": array of bullet strings (empty array if none)
-- "next_steps": array of bullet strings for follow-up items
-
-Minutes text:
-{clipped_text}
-"""
+        user_prompt = SUMMARY_USER_PROMPT_TEMPLATE.format(
+            title=title,
+            meeting_date=meeting_date or "Unknown",
+            raw_text=clipped_text,
+        )
 
         response = self.client.chat.completions.create(
             model=self.model,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "system", "content": EDITORIAL_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
@@ -68,18 +54,28 @@ Minutes text:
         except json.JSONDecodeError:
             logger.warning("Model returned non-JSON summary; using fallback parsing")
             parsed = {
+                "lede": content[:200],
                 "short_summary": content[:500],
+                "newsworthy": [],
                 "key_decisions": [],
                 "budget_finance": [],
-                "public_comment": [],
+                "community_impact": [],
+                "notable_quotes_or_testimony": [],
+                "excluded_routine": [],
                 "next_steps": [],
             }
 
         return {
+            "lede": str(parsed.get("lede", "")).strip(),
             "short_summary": str(parsed.get("short_summary", "")).strip(),
+            "newsworthy": _as_string_list(parsed.get("newsworthy")),
             "key_decisions": _as_string_list(parsed.get("key_decisions")),
             "budget_finance": _as_string_list(parsed.get("budget_finance")),
-            "public_comment": _as_string_list(parsed.get("public_comment")),
+            "community_impact": _as_string_list(parsed.get("community_impact")),
+            "notable_quotes_or_testimony": _as_string_list(
+                parsed.get("notable_quotes_or_testimony")
+            ),
+            "excluded_routine": _as_string_list(parsed.get("excluded_routine")),
             "next_steps": _as_string_list(parsed.get("next_steps")),
         }
 

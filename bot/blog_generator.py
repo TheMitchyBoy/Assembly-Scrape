@@ -1,23 +1,18 @@
-"""Generate blog posts from meeting summaries."""
+"""Generate journalistic blog posts from meeting summaries."""
 
 from __future__ import annotations
 
 import json
 import logging
-import re
 
 from openai import OpenAI
 from slugify import slugify
 
 from bot.config import settings
+from bot.prompts import BLOG_SYSTEM_PROMPT, BLOG_USER_PROMPT_TEMPLATE
 from bot.scraper import MeetingDocument, parse_meeting_date
 
 logger = logging.getLogger(__name__)
-
-BLOG_SYSTEM_PROMPT = """You write accessible blog posts about local government for Ketchikan Gateway Borough residents.
-Write in clear, engaging prose. Use markdown headings and bullet lists where helpful.
-Be accurate and cite only what appears in the provided summary and minutes.
-Include a compelling introduction and a concise conclusion."""
 
 
 class BlogGenerator:
@@ -39,31 +34,22 @@ class BlogGenerator:
     ) -> dict[str, str]:
         meeting_date = parse_meeting_date(document.name, document.meeting_date)
         title = self._build_title(document, meeting_date)
-        user_prompt = f"""Create a public-facing blog post in markdown from this borough assembly meeting.
-
-Meeting name: {document.name}
-Meeting date: {meeting_date or "Unknown"}
-Meeting type: {document.meeting_type or "Regular"}
-Source URL: {source_url}
-
-Structured summary JSON:
-{json.dumps(summary, indent=2)}
-
-Excerpt from minutes (for additional detail only):
-{raw_text[:25_000]}
-
-Return JSON with:
-- "title": blog post headline
-- "summary": 1-2 paragraph meta summary
-- "content": full markdown blog post body (include ## headings, bullet lists, and a Source link at the end)
-"""
+        user_prompt = BLOG_USER_PROMPT_TEMPLATE.format(
+            meeting_name=document.name,
+            meeting_date=meeting_date or "Unknown",
+            meeting_type=document.meeting_type or "Regular",
+            source_url=source_url,
+            summary_json=json.dumps(summary, indent=2),
+            raw_text=raw_text[:80_000],
+        )
+        system_prompt = BLOG_SYSTEM_PROMPT.format(source_url=source_url)
 
         response = self.client.chat.completions.create(
             model=self.model,
-            temperature=0.4,
+            temperature=0.35,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": BLOG_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         )
@@ -95,8 +81,8 @@ Return JSON with:
 
     def _build_title(self, document: MeetingDocument, meeting_date: str | None) -> str:
         if meeting_date:
-            return f"Ketchikan Gateway Borough Assembly Meeting – {meeting_date}"
-        return f"Ketchikan Gateway Borough Assembly Meeting – {document.name}"
+            return f"Borough Assembly Meeting Recap: {meeting_date}"
+        return f"Borough Assembly Meeting Recap: {document.name}"
 
     def _unique_slug(self, title: str, entry_id: int) -> str:
         base = slugify(title) or f"meeting-{entry_id}"
@@ -109,31 +95,28 @@ Return JSON with:
         source_url: str,
         meeting_date: str | None,
     ) -> str:
-        sections = [
-            f"# {self._build_title(document, meeting_date)}",
-            "",
-            str(summary.get("short_summary", "")),
-            "",
-            "## Key Decisions",
-            *_bullet_lines(summary.get("key_decisions")),
-            "",
-            "## Budget & Finance",
-            *_bullet_lines(summary.get("budget_finance")),
-            "",
-            "## Public Comment",
-            *_bullet_lines(summary.get("public_comment")),
-            "",
-            "## Next Steps",
-            *_bullet_lines(summary.get("next_steps")),
-            "",
-            f"[View official minutes]({source_url})",
-        ]
-        return "\n".join(sections).strip()
+        lede = str(summary.get("lede") or summary.get("short_summary", "")).strip()
+        paragraphs = [lede, ""]
 
+        if summary.get("newsworthy"):
+            paragraphs.extend(["## Key developments", ""])
+            paragraphs.extend(f"- {item}" for item in summary["newsworthy"])
+            paragraphs.append("")
 
-def _bullet_lines(items: object) -> list[str]:
-    if not items:
-        return ["- _None noted._"]
-    if isinstance(items, list):
-        return [f"- {item}" for item in items if str(item).strip()]
-    return [f"- {items}"]
+        if summary.get("key_decisions"):
+            paragraphs.extend(["## Decisions", ""])
+            paragraphs.extend(f"- {item}" for item in summary["key_decisions"])
+            paragraphs.append("")
+
+        if summary.get("community_impact"):
+            paragraphs.extend(["## Community impact", ""])
+            paragraphs.extend(f"- {item}" for item in summary["community_impact"])
+            paragraphs.append("")
+
+        if summary.get("next_steps"):
+            paragraphs.extend(["## What's next", ""])
+            paragraphs.extend(f"- {item}" for item in summary["next_steps"])
+            paragraphs.append("")
+
+        paragraphs.append(f"[Read the official minutes]({source_url})")
+        return "\n".join(paragraphs).strip()

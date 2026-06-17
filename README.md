@@ -5,8 +5,8 @@ Automatically scrapes Ketchikan Gateway Borough Assembly meeting minutes from th
 ## Features
 
 - Discovers meeting minute documents via the Laserfiche WebLink API
-- Extracts OCR text from each page (with optional PDF parsing fallback)
-- Uses OpenAI to produce structured summaries and markdown blog posts
+- Extracts OCR text from each scanned page (with optional PDF parsing fallback)
+- Uses OpenAI to triage newsworthy content vs. routine procedure, then writes journalistic blog posts
 - Stores raw text, processing status, and published posts in SQLite (or any SQLAlchemy-supported database)
 - Supports one-off runs or scheduled automatic scraping
 
