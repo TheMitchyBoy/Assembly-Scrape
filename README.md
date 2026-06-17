@@ -76,8 +76,8 @@ Use `--force` to regenerate blog posts for meetings that were already processed.
 
 1. **Scrape** — Authenticates with the WebLink portal (session cookies) and lists documents under the configured folder.
 2. **Extract** — Pulls OCR text from each page via `DocumentService.aspx/GetTextHtmlForPage`.
-3. **Summarize** — Sends the text to OpenAI for a structured summary (decisions, budget, public comment, next steps).
-4. **Publish** — Generates a markdown blog post and upserts it into the database.
+3. **Summarize** — Sends the full scanned text to OpenAI for editorial triage (votes, budget, community impact vs. routine procedure).
+4. **Publish** — Generates a journalistic markdown article and upserts it into the database.
 
 ## Notes
 
