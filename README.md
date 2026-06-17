@@ -54,12 +54,12 @@ python -m bot.main status
 | `WEBLINK_BASE_URL` | KGB public WebLink URL | Laserfiche portal base URL |
 | `WEBLINK_REPO_NAME` | `KGBPUBLIC` | Repository name |
 | `WEBLINK_FOLDER_ID` | `37030` | Borough root folder ID (2026 minutes) |
+| `MIN_YEAR` | `2026` | Only process meetings from this year onward |
 | `ENABLE_KGB_ASSEMBLY` | `true` | Scrape borough assembly minutes |
 | `ENABLE_CITY_COUNCIL` | `true` | Scrape city council minutes |
 | `CITY_AGENDA_URL` | `https://www.ketchikan.gov/council-agendas-and-meetings` | Primary city council agendas page |
 | `CITY_SCRAPE_AGENDA_PAGE` | `true` | Scrape PDF links from the agendas HTML page |
-| `CITY_USE_PRIMEGOV` | `true` | Also fetch 2016+ minutes PDFs from PrimeGov |
-| `CITY_MIN_YEAR` | `2012` | Oldest council meeting year to process |
+| `CITY_USE_PRIMEGOV` | `true` | Also fetch minutes PDFs from PrimeGov |
 | `SCRAPE_INTERVAL_HOURS` | `24` | Default schedule interval |
 
 ## Database Schema

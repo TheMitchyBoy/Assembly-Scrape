@@ -72,7 +72,7 @@ class CityCouncilScraper:
                 if year_match:
                     current_year = int(year_match.group(1))
                     continue
-                if current_year is None or current_year < settings.city_min_year:
+                if current_year is None or current_year < settings.min_year:
                     continue
 
                 links = self._extract_row_pdf_links(row)
@@ -124,7 +124,7 @@ class CityCouncilScraper:
         committee_ids = self._get_city_council_committee_ids()
         years = self._get_archived_years()
         for year in years:
-            if year < settings.city_min_year:
+            if year < settings.min_year:
                 continue
             meetings = self._get_json(f"/api/v2/PublicPortal/ListArchivedMeetings?year={year}")
             if isinstance(meetings, list):
@@ -210,7 +210,7 @@ class CityCouncilScraper:
         years = self._get_json("/api/v2/PublicPortal/GetArchivedMeetingYears")
         if isinstance(years, list):
             return sorted((int(year) for year in years), reverse=True)
-        return [settings.city_min_year]
+        return [settings.min_year]
 
     def _get_json(self, path: str) -> Any:
         url = path if path.startswith("http") else f"{self.base_url}{path}"

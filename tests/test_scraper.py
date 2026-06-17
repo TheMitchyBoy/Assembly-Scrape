@@ -5,7 +5,14 @@ from __future__ import annotations
 import unittest
 
 from bot.city_council_scraper import CityCouncilScraper
-from bot.models import SOURCE_CITY_COUNCIL, SOURCE_KGB_ASSEMBLY
+from bot.config import settings
+from bot.models import (
+    SOURCE_CITY_COUNCIL,
+    SOURCE_KGB_ASSEMBLY,
+    MeetingDocument,
+    meeting_year,
+)
+from bot.pipeline import MeetingMinutesBot
 from bot.scraper import WebLinkScraper, parse_meeting_date
 from bot.text_extractor import TextExtractor
 
@@ -31,6 +38,9 @@ class ScraperTests(unittest.TestCase):
         first = documents[0]
         self.assertEqual(first.source, SOURCE_CITY_COUNCIL)
         self.assertTrue(first.compiled_file_id or first.minutes_url)
+        year = meeting_year(first)
+        self.assertIsNotNone(year)
+        self.assertGreaterEqual(year, settings.min_year)
 
     def test_extract_kgb_first_page_text(self) -> None:
         scraper = WebLinkScraper()
@@ -42,18 +52,34 @@ class ScraperTests(unittest.TestCase):
         self.assertIn("KETCHIKAN", text.upper())
         self.assertIn(method, {"laserfiche_ocr", "pdf"})
 
-    def test_discover_agenda_page_pdfs(self) -> None:
+    def test_meeting_year_filter(self) -> None:
+        bot = MeetingMinutesBot()
+        documents = bot.discover_all_documents()
+        self.assertGreater(len(documents), 0)
+        for doc in documents:
+            year = meeting_year(doc)
+            self.assertIsNotNone(year)
+            self.assertGreaterEqual(year, settings.min_year)
+
+    def test_discover_agenda_page_respects_min_year(self) -> None:
         scraper = CityCouncilScraper()
         documents = scraper._discover_agenda_page_pdfs()
-        self.assertGreaterEqual(len(documents), 50)
-        self.assertTrue(all(doc.minutes_url for doc in documents))
-        self.assertTrue(all(doc.pdf_kind in {"minutes", "agenda"} for doc in documents))
+        if settings.min_year > 2015:
+            self.assertEqual(len(documents), 0)
+        else:
+            self.assertGreater(len(documents), 0)
 
     def test_extract_agenda_page_pdf_text(self) -> None:
         scraper = CityCouncilScraper()
         extractor = TextExtractor(city_scraper=scraper)
-        documents = scraper._discover_agenda_page_pdfs()
-        sample = documents[0]
+        sample = MeetingDocument(
+            source=SOURCE_CITY_COUNCIL,
+            entry_id=2_000_001_897,
+            name="June 18, 2015",
+            meeting_date="June 18, 2015",
+            minutes_url="https://evogov.s3.amazonaws.com/media/16/media/1897.pdf",
+            pdf_kind="minutes",
+        )
         text, method = extractor.extract_document_text(sample)
         self.assertEqual(method, "city_council_pdf")
         self.assertGreater(len(text), 500)

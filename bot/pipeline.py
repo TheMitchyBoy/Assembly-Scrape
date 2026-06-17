@@ -11,7 +11,7 @@ from bot.blog_generator import BlogGenerator
 from bot.city_council_scraper import CityCouncilScraper
 from bot.config import settings
 from bot.database import BlogPost, ProcessedDocument, get_session, init_db
-from bot.models import MeetingDocument, parse_meeting_date
+from bot.models import MeetingDocument, meets_min_year, parse_meeting_date
 from bot.scraper import WebLinkScraper
 from bot.summarizer import Summarizer, truncate_for_log
 from bot.text_extractor import TextExtractor
@@ -94,7 +94,13 @@ class MeetingMinutesBot:
             documents.extend(self.kgb_scraper.discover_meeting_documents())
         if settings.enable_city_council:
             documents.extend(self.city_scraper.discover_meeting_documents())
+        documents = [doc for doc in documents if meets_min_year(doc, settings.min_year)]
         documents.sort(key=lambda doc: (doc.source, doc.meeting_date or "", doc.name))
+        logger.info(
+            "Keeping %s meetings from %s onward",
+            len(documents),
+            settings.min_year,
+        )
         return documents
 
     def _process_document(

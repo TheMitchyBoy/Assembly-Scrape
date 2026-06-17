@@ -43,3 +43,22 @@ def parse_meeting_date(name: str, metadata_date: str | None = None) -> str | Non
         return match.group(1)
     match = re.search(r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})", name)
     return match.group(1) if match else None
+
+
+def meeting_year(document: MeetingDocument) -> int | None:
+    """Extract a four-digit year from meeting metadata or title."""
+    for candidate in (document.meeting_date, document.name):
+        if not candidate:
+            continue
+        if match := re.search(r"\b(20\d{2})\b", candidate):
+            return int(match.group(1))
+        if match := re.search(r"\b(19\d{2})\b", candidate):
+            return int(match.group(1))
+        if match := re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", candidate):
+            return int(match.group(3))
+    return None
+
+
+def meets_min_year(document: MeetingDocument, min_year: int) -> bool:
+    year = meeting_year(document)
+    return year is not None and year >= min_year

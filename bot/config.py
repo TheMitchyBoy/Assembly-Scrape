@@ -26,11 +26,11 @@ class Settings:
     scrape_interval_hours: int
     bot_command: str
     process_limit: int | None
+    min_year: int
     enable_kgb_assembly: bool
     enable_city_council: bool
     city_agenda_url: str
     city_primegov_url: str
-    city_min_year: int
     city_scrape_agenda_page: bool
     city_use_primegov: bool
 
@@ -38,6 +38,7 @@ class Settings:
     def from_env(cls) -> Settings:
         limit_raw = os.getenv("PROCESS_LIMIT", "").strip()
         process_limit = int(limit_raw) if limit_raw else None
+        min_year = int(os.getenv("MIN_YEAR", os.getenv("CITY_MIN_YEAR", "2026")))
         return cls(
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -51,6 +52,7 @@ class Settings:
             scrape_interval_hours=int(os.getenv("SCRAPE_INTERVAL_HOURS", "24")),
             bot_command=os.getenv("BOT_COMMAND", "run"),
             process_limit=process_limit,
+            min_year=min_year,
             enable_kgb_assembly=os.getenv("ENABLE_KGB_ASSEMBLY", "true").lower() == "true",
             enable_city_council=os.getenv("ENABLE_CITY_COUNCIL", "true").lower() == "true",
             city_agenda_url=os.getenv(
@@ -61,7 +63,6 @@ class Settings:
                 "CITY_PRIMEGOV_URL",
                 "https://ketchikan.primegov.com",
             ).rstrip("/"),
-            city_min_year=int(os.getenv("CITY_MIN_YEAR", "2012")),
             city_scrape_agenda_page=os.getenv("CITY_SCRAPE_AGENDA_PAGE", "true").lower() == "true",
             city_use_primegov=os.getenv("CITY_USE_PRIMEGOV", "true").lower() == "true",
         )
